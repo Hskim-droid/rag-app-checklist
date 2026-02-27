@@ -1,0 +1,48 @@
+site_name: RAG App Checklist
+site_description: Copy-paste recipes for shipping RAG apps
+site_url: https://hskim-droid.github.io/rag-app-checklist/
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: black
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Dark mode
+    - scheme: slate
+      primary: black
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Light mode
+  font:
+    text: Inter
+    code: JetBrains Mono
+  features:
+    - content.code.copy
+    - content.code.annotate
+    - navigation.instant
+    - navigation.sections
+    - navigation.top
+    - search.highlight
+    - search.suggest
+    - toc.follow
+
+nav:
+  - Home: index.md
+  - Ship Your RAG App: cross-cutting-concerns.md
+  - How to Test a RAG App: testing-strategy.md
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - admonition
+  - pymdownx.details
+  - tables
+  - toc:
+      permalink: true
