@@ -25,6 +25,7 @@ theme:
     - content.code.annotate
     - navigation.instant
     - navigation.sections
+    - navigation.expand
     - navigation.top
     - search.highlight
     - search.suggest
@@ -32,8 +33,13 @@ theme:
 
 nav:
   - Home: index.md
-  - Ship Your RAG App: cross-cutting-concerns.md
-  - How to Test a RAG App: testing-strategy.md
+  - English:
+    - Ship Your RAG App: cross-cutting-concerns.md
+    - How to Test a RAG App: testing-strategy.md
+  - 한국어:
+    - 홈: ko/index.md
+    - RAG 앱 배포하기: ko/ship.md
+    - RAG 앱 테스트하기: ko/test.md
 
 markdown_extensions:
   - pymdownx.highlight:
