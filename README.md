@@ -24,6 +24,19 @@ You can't `assert answer == "exact string"` with an LLM. Here's what you do inst
 - **Test agents** — tool selection accuracy, step efficiency, hallucination rate
 - **Mock the LLM** — so your tests don't cost money
 
+## Try It
+
+```bash
+cd examples/minimal-rag
+pip install -r requirements.txt
+export OPENAI_API_KEY=sk-...
+python ingest.py
+uvicorn app:app --reload
+# open http://localhost:8000
+```
+
+A complete RAG app in 6 files — every pattern from the guides, actually running. See [`examples/minimal-rag/`](examples/minimal-rag/) for details.
+
 ## Origin
 
 Extracted from a production AI platform running RAG + Knowledge Graph + agent tool calling. Patterns stripped of proprietary details and rewritten as practical recipes.

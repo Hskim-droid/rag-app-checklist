@@ -1,0 +1,28 @@
+Product FAQ
+
+Q: What is the return policy?
+A: You can return any item within 30 days of purchase with a valid receipt for a full refund. Items must be in original packaging and unused condition. After 30 days, we offer store credit only.
+
+Q: Do you ship internationally?
+A: Yes, we ship to over 40 countries. Standard international shipping takes 7-14 business days. Express shipping (3-5 days) is available for an additional $15. Free shipping on domestic orders over $50.
+
+Q: What are the pricing plans?
+A: We offer three plans:
+- Free: Basic features, 100 queries/month
+- Pro: $29/month, unlimited queries, priority support, API access
+- Enterprise: Custom pricing, dedicated support, SLA guarantees, on-premise option
+
+Q: How do I reset my password?
+A: Click "Forgot Password" on the login page. Enter your email address. You'll receive a reset link within 5 minutes. The link expires after 24 hours. If you don't receive the email, check your spam folder.
+
+Q: What payment methods do you accept?
+A: We accept Visa, Mastercard, American Express, PayPal, and bank transfers. All payments are processed securely through Stripe. We do not store credit card information on our servers.
+
+Q: Is there an API available?
+A: Yes, our REST API is available on Pro and Enterprise plans. Documentation is at docs.example.com/api. Rate limits: Pro gets 1000 requests/hour, Enterprise gets unlimited. API keys can be generated from your dashboard settings.
+
+Q: What is your uptime guarantee?
+A: We guarantee 99.9% uptime for Pro and Enterprise plans. Our status page at status.example.com shows real-time service health. Planned maintenance windows are communicated 48 hours in advance via email.
+
+Q: How do I cancel my subscription?
+A: Go to Settings > Billing > Cancel Subscription. Cancellation takes effect at the end of your current billing period. You retain access until then. We offer a prorated refund for annual plans cancelled within the first 30 days.
