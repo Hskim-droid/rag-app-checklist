@@ -34,12 +34,12 @@ theme:
 nav:
   - Home: index.md
   - Guides:
-    - Ship Your RAG App: cross-cutting-concerns.md
-    - How to Test a RAG App: testing-strategy.md
+    - Production Guide: cross-cutting-concerns.md
+    - Testing Guide: testing-strategy.md
   - 가이드:
     - 홈: ko/index.md
-    - RAG 앱 배포하기: ko/ship.md
-    - RAG 앱 테스트하기: ko/test.md
+    - 프로덕션 가이드: ko/ship.md
+    - 테스트 가이드: ko/test.md
 
 extra:
   alternate:

@@ -1,26 +1,26 @@
-# How to Test a RAG App (When the AI Part Is Non-Deterministic)
+# RAG App Testing Guide
 
-You can't write `assert answer == "exact string"` for an LLM. The same question gives different answers every time. So most people just... don't test. Here's how to actually do it.
-
----
-
-## 1. The Three Things You Need to Test
-
-Forget test pyramids. For a RAG app, you need exactly three things:
-
-| What | Why | How |
-|------|-----|-----|
-| **Retrieval** | Is the right context being found? | Assert on chunk content and scores |
-| **Generation** | Is the answer grounded in the context? | RAGAS faithfulness check |
-| **Safety** | Will it leak data or follow injections? | Pattern matching on input/output |
-
-Everything else is normal web app testing (API routes, auth, etc.) — you already know how to do that or your framework handles it.
+LLM outputs are non-deterministic — the same question produces different answers each time. This makes traditional `assert answer == "exact string"` testing impractical. This guide covers practical testing approaches for RAG applications.
 
 ---
 
-## 2. Test Your Retrieval (The Part Most People Skip)
+## 1. The Three Areas to Test
 
-Your retrieval is either finding the right documents or it isn't. This is deterministic and testable.
+For a RAG application, focus on these three areas:
+
+| Area | Purpose | Approach |
+|------|---------|----------|
+| **Retrieval** | Is the correct context being found? | Assert on chunk content and similarity scores |
+| **Generation** | Is the answer grounded in the retrieved context? | RAGAS faithfulness check |
+| **Safety** | Does it resist injection and protect sensitive data? | Pattern matching on input/output |
+
+Standard web application testing (API routes, auth, etc.) applies as usual and is handled by your existing test infrastructure.
+
+---
+
+## 2. Retrieval Testing
+
+Retrieval is deterministic and directly testable: given a query, does the vector store return the correct documents?
 
 ```python
 # test_retrieval.py
@@ -53,34 +53,36 @@ def test_retrieval_does_not_confuse_topics(vector_store):
     results = vector_store.similarity_search_with_score("What's the shipping time?", k=1)
 
     top_doc, _ = results[0]
-    # should return shipping info, NOT refund or pricing
+    # should return shipping info, not refund or pricing
     assert "ship" in top_doc.page_content.lower()
     assert "refund" not in top_doc.page_content.lower()
 
 def test_retrieval_returns_nothing_for_unknown_topic(vector_store):
     results = vector_store.similarity_search_with_score("What color is the sky?", k=3)
 
-    # all scores should be low — we have nothing about this
+    # all scores should be low — no relevant data exists
     scores = [score for _, score in results]
     assert all(s < 0.5 for s in scores), f"Unexpected high scores: {scores}"
 ```
 
-Run it: `pytest test_retrieval.py -v`
+Run: `pytest test_retrieval.py -v`
 
-This catches the most common RAG bugs:
-- Embeddings changed and retrieval is silently broken
-- New documents pushed old ones out of top-k
-- Chunking changes broke document boundaries
+These tests catch the most common RAG regressions:
+
+- Embedding model changes that silently break retrieval
+- New documents displacing relevant ones from the top-k results
+- Chunking changes that break document boundaries
 
 ---
 
-## 3. Test Your Generation (Is It Hallucinating?)
+## 3. Generation Testing (Hallucination Detection)
 
-You can't assert exact strings, but you CAN check:
+Exact string matching is not feasible, but you can verify:
+
 - Does the answer contain information from the retrieved context?
-- Does the answer NOT contain information that was never retrieved?
+- Does the answer avoid including information that was never retrieved?
 
-### Quick Hallucination Check (No RAGAS Needed)
+### Quick Hallucination Check (No RAGAS Required)
 
 ```python
 # test_generation.py
@@ -91,28 +93,28 @@ def test_answer_is_grounded_in_context():
 
     answer = my_rag_pipeline(question, forced_context=context)
 
-    # the answer should mention what's in the context
+    # the answer should reference what's in the context
     assert "30 days" in answer or "thirty days" in answer.lower()
 
-    # the answer should NOT make up stuff that's not in context
+    # the answer should not fabricate information absent from context
     assert "90 days" not in answer  # common hallucination
-    assert "no questions asked" not in answer.lower()  # not in our policy
+    assert "no questions asked" not in answer.lower()  # not in the policy
 
 def test_says_idk_when_no_context():
-    """When retrieval finds nothing relevant, the LLM should admit it"""
+    """When retrieval finds nothing relevant, the LLM should acknowledge this"""
     answer = my_rag_pipeline(
         "What is the meaning of life?",
         forced_context="Our return policy allows refunds within 30 days.",  # irrelevant
     )
 
-    # should NOT try to answer using unrelated context
+    # should not attempt to answer using unrelated context
     idk_signals = ["don't have", "cannot find", "no information", "not able to answer",
                    "outside", "not covered", "I'm not sure"]
     has_idk = any(signal in answer.lower() for signal in idk_signals)
-    assert has_idk, f"Expected 'I don't know' response, got: {answer[:200]}"
+    assert has_idk, f"Expected acknowledgment of insufficient context, got: {answer[:200]}"
 ```
 
-### RAGAS Batch Check (Run Weekly or Before Big Deploys)
+### RAGAS Batch Evaluation (Weekly or Pre-Deploy)
 
 ```python
 # eval_rag_quality.py
@@ -150,18 +152,18 @@ def test_rag_quality():
     assert scores["answer_relevancy"] >= 0.6, "Answers are not relevant to questions"
 ```
 
-**How to read the scores:**
+**Interpreting the scores:**
 
-| Score | Meaning | If It's Low |
-|-------|---------|-------------|
-| Faithfulness 0.9 | 90% of answer claims are supported by context | Your LLM is hallucinating. Tighten the system prompt. |
-| Faithfulness 0.4 | LLM is mostly making stuff up | Serious problem. Check if context is even reaching the LLM. |
-| Context Recall 0.8 | 80% of needed info was retrieved | Good. |
-| Context Recall 0.3 | Most relevant docs are NOT being found | Chunking or embedding problem. |
+| Score | Meaning | Action if Low |
+|-------|---------|---------------|
+| Faithfulness 0.9 | 90% of answer claims are supported by context | Good |
+| Faithfulness 0.4 | Most claims lack context support | Verify context is reaching the LLM correctly |
+| Context Recall 0.8 | 80% of needed information was retrieved | Good |
+| Context Recall 0.3 | Most relevant documents are not being found | Review chunking and embedding configuration |
 
 ---
 
-## 4. Test Your Safety (10 Minutes, Prevents Disasters)
+## 4. Safety Testing
 
 ```python
 # test_safety.py
@@ -214,36 +216,36 @@ def test_masks_pii_in_output():
 
 ---
 
-## 5. Test Your Agent's Tool Calls (If You Have Agents)
+## 5. Agent Tool Call Testing (If Applicable)
 
-If your app uses agents that call tools (search, calculator, API calls, etc.), you need to test that the agent picks the right tool — not just that it returns a reasonable answer.
+If your application uses agents that call tools (search, calculator, API calls, etc.), verify that the agent selects the correct tool — not just that it returns a reasonable answer.
 
 ```python
 # test_agent.py
 
 async def test_agent_uses_search_for_factual_questions():
-    """Agent should search the knowledge base, not guess"""
+    """Agent should query the knowledge base, not guess"""
     result = await my_agent.run("What is Product X priced at?")
 
     tool_calls = [m for m in result.messages if m.type == "tool_call"]
 
-    # it should have called the search tool
+    # should have called the search tool
     tool_names = [tc.tool_name for tc in tool_calls]
     assert "knowledge_search" in tool_names, f"Expected search, got: {tool_names}"
 
-    # it should NOT have tried to calculate or code-execute
+    # should not have used unrelated tools
     assert "calculator" not in tool_names
     assert "code_execute" not in tool_names
 
 async def test_agent_doesnt_loop_forever():
-    """Agent should finish in a reasonable number of steps"""
+    """Agent should complete within a reasonable number of steps"""
     result = await my_agent.run("What is 2+2?")
 
     tool_calls = [m for m in result.messages if m.type == "tool_call"]
     assert len(tool_calls) <= 5, f"Agent took {len(tool_calls)} steps for a simple question"
 
 async def test_agent_admits_ignorance():
-    """When tools return nothing useful, agent should say so"""
+    """When tools return no useful results, agent should acknowledge this"""
     result = await my_agent.run("What happened on Mars yesterday?")
 
     answer = result.output.lower()
@@ -252,9 +254,9 @@ async def test_agent_admits_ignorance():
     assert not has_false_confidence, f"Agent hallucinated confidence: {result.output[:200]}"
 ```
 
-### The Four Numbers That Matter
+### Key Metrics
 
-After running your agent tests, track these:
+After running agent tests, track these four numbers:
 
 ```python
 def calculate_agent_metrics(test_results):
@@ -271,25 +273,25 @@ def calculate_agent_metrics(test_results):
     print(f"Hallucination Rate:      {hallucination_rate:.0%}")# < 10% is the goal
 ```
 
-| Metric | Good | Bad | What To Do |
-|--------|------|-----|-----------|
-| Tool Accuracy > 80% | Agent picks the right tool | Agent calls calculator for text questions | Improve tool descriptions |
-| Completion > 70% | Tasks get finished | Agent loops or gives up | Check max_steps, add fallbacks |
-| Avg Steps < 3 | Efficient | Agent calls 8 tools for a simple lookup | Simplify tool set |
-| Hallucination < 10% | Honest | Agent makes up sources | Add "say I don't know" instruction |
+| Metric | Good | Poor | Recommended Action |
+|--------|------|------|--------------------|
+| Tool Accuracy > 80% | Correct tool selected | Wrong tool for the task | Improve tool descriptions |
+| Completion > 70% | Tasks completed | Agent loops or gives up | Check max_steps, add fallbacks |
+| Avg Steps < 3 | Efficient execution | Excessive tool calls | Simplify tool set |
+| Hallucination < 10% | Honest responses | Fabricates sources | Add "acknowledge uncertainty" instruction |
 
 ---
 
-## 6. Mocking the LLM (So Tests Don't Cost Money)
+## 6. LLM Mocking (Reducing Test Costs)
 
-Every test that calls a real LLM is slow (~1-3s), expensive (~$0.001-0.01), and non-deterministic. Mock it.
+Every test that calls a real LLM is slow (~1–3s), expensive (~$0.001–0.01), and non-deterministic. Use mocks for unit tests.
 
 ```python
 # conftest.py
 import pytest
 
 class MockLLM:
-    """Returns canned responses. Use this for unit tests."""
+    """Returns canned responses for deterministic unit testing."""
     def __init__(self, response="This is a test response."):
         self.response = response
         self.calls = []  # track what was sent
@@ -306,7 +308,7 @@ def mock_llm():
 def mock_llm_idk():
     return MockLLM(response="I don't have enough information to answer this question.")
 
-# use in tests
+# usage in tests
 async def test_rag_pipeline_uses_context(mock_llm):
     pipeline = RAGPipeline(llm=mock_llm, vector_store=test_store)
     await pipeline.query("test question")
@@ -317,14 +319,15 @@ async def test_rag_pipeline_uses_context(mock_llm):
     assert "context" in system_msg.lower()  # system prompt includes retrieved docs
 ```
 
-**Rule of thumb:**
+**Guidelines:**
+
 - **Unit tests** → always mock the LLM (fast, free, deterministic)
 - **Retrieval tests** → use real embeddings, mock generation
-- **RAGAS evaluation** → uses real LLM (that's the whole point, run it less often)
+- **RAGAS evaluation** → use real LLM (that's the purpose — run less frequently)
 
 ---
 
-## Summary: What to Run and When
+## Summary: When to Run Each Test
 
 ```
 Every code change (seconds, free):
@@ -337,14 +340,14 @@ Weekly (minutes, ~$5-20):
   python eval_rag_quality.py
 ```
 
-### The Minimum Viable Test Suite
+### The Five Essential Tests
 
-If you do nothing else, write these 5 tests:
+At minimum, implement these five tests:
 
-1. **Top retrieval result contains the right keyword** — catches embedding/chunking regressions
-2. **Answer mentions facts from the context** — catches prompt template bugs
-3. **Answer says "I don't know" when context is irrelevant** — catches hallucination
-4. **Prompt injection is blocked** — catches the most embarrassing failure mode
+1. **Top retrieval result contains the expected keyword** — catches embedding/chunking regressions
+2. **Answer references facts from the provided context** — catches prompt template issues
+3. **Answer acknowledges uncertainty when context is irrelevant** — catches hallucination
+4. **Prompt injection attempts are blocked** — catches critical security failures
 5. **PII is masked in output** — catches data leaks
 
-That's 30 minutes of work. It will save you from the worst failures.
+This takes approximately 30 minutes to implement and prevents the most common production failures.

@@ -1,28 +1,28 @@
-# RAG App Survival Guide
+# RAG App Checklist
 
-You built a RAG app. It works on your laptop. Before you share that link, read these two docs.
+Production-ready patterns for RAG applications. Two guides with copy-paste code.
 
-## [Ship Your RAG App Without Embarrassing Yourself](docs/cross-cutting-concerns.md)
+## [RAG App Production Guide](docs/cross-cutting-concerns.md)
 
-Copy-paste solutions for the things that will break in production:
+Common production issues and their solutions:
 
-- **Hallucination detection** — 10 lines to check if your RAG is making stuff up
-- **Safety filter** — block prompt injection and PII leaks (one function, drop it in)
-- **Cost tracking** — find out you're spending $0.08 per chat before the bill arrives
-- **Retrieval debugging** — why your chunks are returning garbage and how to fix it
-- **Chunking** — the settings that actually work (and how to verify)
-- **Streaming** — stop making users stare at a spinner for 5 seconds
-- **Error handling** — your LLM API will fail, handle it
+- **Hallucination detection** — automated grounding check with RAGAS
+- **Input safety** — prompt injection and PII protection
+- **Cost monitoring** — per-request cost logging and model routing
+- **Retrieval debugging** — logging, similarity thresholds, diagnostics
+- **Chunking** — recommended settings and quality verification
+- **Streaming** — SSE with FastAPI and vanilla JS
+- **Error handling** — retry logic with rate limit handling
 
-## [How to Test a RAG App](docs/testing-strategy.md)
+## [RAG App Testing Guide](docs/testing-strategy.md)
 
-You can't `assert answer == "exact string"` with an LLM. Here's what you do instead:
+Testing strategies for non-deterministic LLM outputs:
 
-- **Test retrieval** — is the right context being found? (deterministic, free)
-- **Test generation** — is the answer grounded in context, or hallucinated? (RAGAS)
-- **Test safety** — prompt injection and PII, parametrized
-- **Test agents** — tool selection accuracy, step efficiency, hallucination rate
-- **Mock the LLM** — so your tests don't cost money
+- **Retrieval testing** — verify correct context is found (deterministic, free)
+- **Generation testing** — grounding and hallucination detection (RAGAS)
+- **Safety testing** — prompt injection and PII, parametrized
+- **Agent testing** — tool selection accuracy, step efficiency, hallucination rate
+- **LLM mocking** — fast, cost-free testing
 
 ## Try It
 

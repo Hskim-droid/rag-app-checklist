@@ -1,41 +1,39 @@
 # RAG App Checklist
 
-You built a RAG app. It works on your laptop. Before you share that link, go through these two guides.
+Two guides for taking a RAG app from local prototype to production-ready.
 
 ---
 
-## [Ship Your RAG App Without Embarrassing Yourself](cross-cutting-concerns.md)
+## [RAG App Production Guide](cross-cutting-concerns.md)
 
-Copy-paste solutions for the things that will break in production:
+Copy-paste solutions for common production issues:
 
-- **Hallucination detection** — 10 lines to check if your RAG is making stuff up
-- **Safety filter** — block prompt injection and PII leaks (one function, drop it in)
-- **Cost tracking** — find out you're spending $0.08 per chat before the bill arrives
-- **Retrieval debugging** — why your chunks are returning garbage and how to fix it
-- **Chunking** — the settings that actually work (and how to verify)
-- **Streaming** — stop making users stare at a spinner for 5 seconds
-- **Error handling** — your LLM API will fail, handle it
+- **Hallucination detection** — automated check with RAGAS in 10 lines
+- **Input safety** — prompt injection and PII protection in one function
+- **Cost monitoring** — per-request cost logging and model routing
+- **Retrieval debugging** — logging, similarity thresholds, and diagnostics
+- **Chunking** — recommended settings and quality verification
+- **Streaming** — SSE implementation with FastAPI and vanilla JS
+- **Error handling** — retry logic with rate limit and context overflow handling
 
-## [How to Test a RAG App](testing-strategy.md)
+## [RAG App Testing Guide](testing-strategy.md)
 
-You can't `assert answer == "exact string"` with an LLM. Here's what you do instead:
+LLM outputs are non-deterministic. Standard assertions don't apply. Here's what works:
 
-- **Test retrieval** — is the right context being found? (deterministic, free)
-- **Test generation** — is the answer grounded in context, or hallucinated? (RAGAS)
-- **Test safety** — prompt injection and PII, parametrized
-- **Test agents** — tool selection accuracy, step efficiency, hallucination rate
-- **Mock the LLM** — so your tests don't cost money
+- **Retrieval testing** — verify correct context is found (deterministic, free)
+- **Generation testing** — check grounding and detect hallucination (RAGAS)
+- **Safety testing** — prompt injection and PII, parametrized
+- **Agent testing** — tool selection accuracy, step efficiency, hallucination rate
+- **LLM mocking** — keep tests fast and cost-free
 
 ---
 
 ## Quick Start
 
-Pick your situation:
-
-| I need to... | Read this |
-|-------------|-----------|
-| Ship a RAG app this week | [Ship Your RAG App](cross-cutting-concerns.md) — start with the checklist at the bottom |
-| Stop my RAG from hallucinating | [Ship Your RAG App, Section 1](cross-cutting-concerns.md#1-your-rag-is-hallucinating-and-you-dont-know-it) |
-| Add safety before someone jailbreaks it | [Ship Your RAG App, Section 2](cross-cutting-concerns.md#2-someone-will-try-to-jailbreak-your-app-on-day-one) |
-| Write tests for a RAG app | [How to Test a RAG App](testing-strategy.md) — start with the 5 minimum tests at the bottom |
-| Test my agent's tool calls | [Testing Strategy, Section 5](testing-strategy.md#5-test-your-agents-tool-calls-if-you-have-agents) |
+| Goal | Recommended Reading |
+|------|---------------------|
+| Deploy a RAG app this week | [Production Guide](cross-cutting-concerns.md) — start with the checklist at the bottom |
+| Reduce hallucination | [Production Guide, Section 1](cross-cutting-concerns.md#1-hallucination-detection) |
+| Add input safety | [Production Guide, Section 2](cross-cutting-concerns.md#2-input-safety-prompt-injection-and-pii) |
+| Write tests for a RAG app | [Testing Guide](testing-strategy.md) — start with the 5 essential tests at the bottom |
+| Test agent tool calls | [Testing Guide, Section 5](testing-strategy.md#5-agent-tool-call-testing-if-applicable) |

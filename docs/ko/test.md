@@ -1,26 +1,26 @@
-# RAG 앱 테스트하는 법 (AI가 비결정적일 때)
+# RAG 앱 테스트 가이드
 
-LLM에는 `assert answer == "정확한 문자열"`을 사용할 수 없습니다. 같은 질문에 매번 다른 답이 나옵니다. 그래서 대부분의 분들이 테스트를 건너뛰시는데, 실제로 할 수 있는 방법을 안내해 드리겠습니다.
-
----
-
-## 1. 테스트해야 할 세 가지
-
-테스트 피라미드는 잠시 잊으셔도 됩니다. RAG 앱에는 정확히 세 가지가 필요합니다:
-
-| 항목 | 이유 | 방법 |
-|------|------|------|
-| **검색** | 올바른 컨텍스트가 검색되는가? | 청크 내용과 점수로 assert |
-| **생성** | 답변이 컨텍스트에 근거하는가? | RAGAS faithfulness 체크 |
-| **안전** | 데이터를 유출하거나 인젝션을 따르는가? | 입출력 패턴 매칭 |
-
-나머지는 일반 웹앱 테스트입니다 (API 라우트, 인증 등) — 이미 알고 계시거나 프레임워크가 처리해 줍니다.
+LLM 출력은 비결정적입니다 — 같은 질문에 매번 다른 답이 나옵니다. 따라서 `assert answer == "정확한 문자열"` 방식의 테스트가 적용되지 않습니다. 이 가이드에서는 RAG 앱에 적합한 실전 테스트 방법을 다룹니다.
 
 ---
 
-## 2. 검색 테스트 (대부분이 건너뛰시는 부분)
+## 1. 테스트 대상 세 가지
 
-검색은 올바른 문서를 찾거나 못 찾거나 둘 중 하나입니다. 결정적이며 테스트 가능합니다.
+RAG 앱에서는 다음 세 가지 영역에 집중합니다:
+
+| 영역 | 목적 | 접근 방법 |
+|------|------|----------|
+| **검색** | 올바른 컨텍스트가 검색되는가? | 청크 내용과 유사도 점수로 assert |
+| **생성** | 답변이 컨텍스트에 근거하는가? | RAGAS faithfulness 검증 |
+| **안전** | 인젝션을 차단하고 민감 정보를 보호하는가? | 입출력 패턴 매칭 |
+
+그 외 일반적인 웹 앱 테스트(API 라우트, 인증 등)는 기존 테스트 인프라에서 처리됩니다.
+
+---
+
+## 2. 검색 테스트
+
+검색은 결정적이며 직접 테스트할 수 있습니다. 주어진 쿼리에 대해 벡터 스토어가 올바른 문서를 반환하는지 확인합니다.
 
 ```python
 # test_retrieval.py
@@ -43,7 +43,7 @@ def vector_store():
 def test_retrieval_finds_refund_policy(vector_store):
     results = vector_store.similarity_search_with_score("환불 어떻게 하나요?", k=3)
 
-    # 환불 문서가 첫 번째여야 합니다
+    # 환불 문서가 첫 번째 결과여야 합니다
     top_doc, top_score = results[0]
     assert "환불" in top_doc.page_content
     assert "30일" in top_doc.page_content
@@ -60,27 +60,29 @@ def test_retrieval_does_not_confuse_topics(vector_store):
 def test_retrieval_returns_nothing_for_unknown_topic(vector_store):
     results = vector_store.similarity_search_with_score("하늘은 무슨 색인가요?", k=3)
 
-    # 모든 점수가 낮아야 합니다 — 관련 데이터가 없기 때문입니다
+    # 관련 데이터가 없으므로 모든 점수가 낮아야 합니다
     scores = [score for _, score in results]
     assert all(s < 0.5 for s in scores), f"예상 외로 높은 점수: {scores}"
 ```
 
 실행: `pytest test_retrieval.py -v`
 
-이 테스트가 잡아내는 가장 흔한 RAG 버그들입니다:
-- 임베딩이 바뀌어서 검색이 조용히 깨진 경우
-- 새 문서가 기존 문서를 top-k 밖으로 밀어낸 경우
-- 청킹 변경이 문서 경계를 깨뜨린 경우
+이 테스트로 발견할 수 있는 주요 RAG 회귀 문제:
+
+- 임베딩 모델 변경으로 인한 검색 품질 저하
+- 새 문서 추가로 기존 관련 문서가 top-k 밖으로 밀려난 경우
+- 청킹 변경으로 인한 문서 경계 손상
 
 ---
 
-## 3. 생성 테스트 (환각 여부 확인)
+## 3. 생성 테스트 (환각 감지)
 
-정확한 문자열로 assert할 수는 없지만, 다음은 확인하실 수 있습니다:
+정확한 문자열 매칭은 불가능하지만, 다음은 검증할 수 있습니다:
+
 - 답변이 검색된 컨텍스트의 정보를 포함하는가?
-- 답변이 검색되지 않은 정보를 포함하고 있지는 않은가?
+- 검색되지 않은 정보가 답변에 포함되어 있지 않은가?
 
-### 빠른 환각 체크 (RAGAS 없이)
+### 간편 환각 검증 (RAGAS 불필요)
 
 ```python
 # test_generation.py
@@ -91,28 +93,28 @@ def test_answer_is_grounded_in_context():
 
     answer = my_rag_pipeline(question, forced_context=context)
 
-    # 답변이 컨텍스트의 내용을 언급해야 합니다
+    # 답변이 컨텍스트의 내용을 참조해야 합니다
     assert "30일" in answer
 
-    # 답변이 컨텍스트에 없는 내용을 지어내면 안 됩니다
+    # 컨텍스트에 없는 내용을 생성하면 안 됩니다
     assert "90일" not in answer  # 흔한 환각
     assert "무조건" not in answer  # 정책에 없는 내용
 
 def test_says_idk_when_no_context():
-    """검색 결과가 관련 없으면 LLM이 솔직하게 인정해야 합니다"""
+    """컨텍스트가 관련 없으면 LLM이 이를 인정해야 합니다"""
     answer = my_rag_pipeline(
         "인생의 의미가 뭔가요?",
         forced_context="환불 정책: 구매 후 30일 이내 환불 가능.",  # 관련 없음
     )
 
-    # 관련 없는 컨텍스트로 억지로 답변하면 안 됩니다
+    # 관련 없는 컨텍스트로 억지 답변을 생성하면 안 됩니다
     idk_signals = ["정보가 없", "찾을 수 없", "답변하기 어려", "해당 내용이 없",
                    "관련 정보를 찾", "모르겠", "확인되지 않"]
     has_idk = any(signal in answer for signal in idk_signals)
-    assert has_idk, f"'모르겠습니다' 응답이 예상되었으나, 받은 답변: {answer[:200]}"
+    assert has_idk, f"불충분한 컨텍스트 인정이 예상되었으나, 받은 답변: {answer[:200]}"
 ```
 
-### RAGAS 배치 체크 (주간 또는 큰 배포 전에 실행)
+### RAGAS 배치 평가 (주간 또는 주요 배포 전)
 
 ```python
 # eval_rag_quality.py
@@ -147,21 +149,21 @@ def test_rag_quality():
     print(f"Context Recall:    {scores['context_recall']:.2f}")
 
     assert scores["faithfulness"] >= 0.7, "답변이 컨텍스트에 근거하지 않습니다"
-    assert scores["answer_relevancy"] >= 0.6, "답변이 질문에 관련되지 않습니다"
+    assert scores["answer_relevancy"] >= 0.6, "답변이 질문과 관련성이 부족합니다"
 ```
 
-**점수를 읽는 방법:**
+**점수 해석:**
 
-| 점수 | 의미 | 낮을 경우 |
-|------|------|----------|
-| Faithfulness 0.9 | 답변 주장의 90%가 컨텍스트로 뒷받침됨 | LLM이 환각하고 있습니다. 시스템 프롬프트를 강화해 주세요. |
-| Faithfulness 0.4 | LLM이 대부분 지어내고 있음 | 심각한 문제입니다. 컨텍스트가 LLM에 정상적으로 전달되는지 확인해 주세요. |
-| Context Recall 0.8 | 필요한 정보의 80%가 검색됨 | 양호합니다. |
-| Context Recall 0.3 | 관련 문서 대부분이 검색되지 않음 | 청킹 또는 임베딩 설정을 점검해 주세요. |
+| 점수 | 의미 | 낮을 경우 조치 |
+|------|------|--------------|
+| Faithfulness 0.9 | 답변 주장의 90%가 컨텍스트로 뒷받침됨 | 양호 |
+| Faithfulness 0.4 | 대부분의 주장에 컨텍스트 근거가 부족 | 컨텍스트가 LLM에 정상 전달되는지 확인 |
+| Context Recall 0.8 | 필요한 정보의 80%가 검색됨 | 양호 |
+| Context Recall 0.3 | 관련 문서 대부분이 검색되지 않음 | 청킹 및 임베딩 설정 점검 |
 
 ---
 
-## 4. 안전 테스트 (10분이면 재앙을 방지할 수 있습니다)
+## 4. 안전 테스트
 
 ```python
 # test_safety.py
@@ -215,9 +217,9 @@ def test_masks_pii_in_output():
 
 ---
 
-## 5. 에이전트 도구 호출 테스트 (에이전트를 사용하신다면)
+## 5. 에이전트 도구 호출 테스트 (해당되는 경우)
 
-에이전트가 도구를 호출하는 앱이라면 (검색, 계산기, API 호출 등), 에이전트가 올바른 도구를 선택하는지도 테스트해야 합니다 — 합리적인 답변을 내는 것만으로는 부족합니다.
+에이전트가 도구를 호출하는 앱(검색, 계산기, API 호출 등)이라면, 에이전트가 올바른 도구를 선택하는지도 검증해야 합니다 — 합리적인 답변 여부만으로는 충분하지 않습니다.
 
 ```python
 # test_agent.py
@@ -228,11 +230,11 @@ async def test_agent_uses_search_for_factual_questions():
 
     tool_calls = [m for m in result.messages if m.type == "tool_call"]
 
-    # 검색 도구를 호출했어야 합니다
+    # 검색 도구를 호출해야 합니다
     tool_names = [tc.tool_name for tc in tool_calls]
     assert "knowledge_search" in tool_names, f"검색이 예상되었으나, 실제: {tool_names}"
 
-    # 계산기나 코드 실행을 시도하면 안 됩니다
+    # 관련 없는 도구를 사용하면 안 됩니다
     assert "calculator" not in tool_names
     assert "code_execute" not in tool_names
 
@@ -244,18 +246,18 @@ async def test_agent_doesnt_loop_forever():
     assert len(tool_calls) <= 5, f"간단한 질문에 에이전트가 {len(tool_calls)}스텝을 사용했습니다"
 
 async def test_agent_admits_ignorance():
-    """도구가 유용한 결과를 반환하지 않으면 에이전트가 솔직하게 인정해야 합니다"""
+    """도구 결과가 유용하지 않으면 에이전트가 이를 인정해야 합니다"""
     result = await my_agent.run("어제 화성에서 무슨 일이 있었나요?")
 
     answer = result.output.lower()
     confident_wrong_signals = ["에 따르면", "데이터에 의하면", "답변은"]
     has_false_confidence = any(s in answer for s in confident_wrong_signals)
-    assert not has_false_confidence, f"에이전트가 근거 없이 확신을 보였습니다: {result.output[:200]}"
+    assert not has_false_confidence, f"에이전트가 근거 없는 확신을 보였습니다: {result.output[:200]}"
 ```
 
-### 핵심 지표 네 가지
+### 핵심 지표
 
-에이전트 테스트 후 다음 지표를 추적해 주세요:
+에이전트 테스트 후 다음 네 가지 수치를 추적해 주세요:
 
 ```python
 def calculate_agent_metrics(test_results):
@@ -268,32 +270,32 @@ def calculate_agent_metrics(test_results):
 
     print(f"도구 선택 정확도:  {tool_accuracy:.0%}")    # > 80%이면 양호
     print(f"과제 완료율:      {completion_rate:.0%}")    # > 70%이면 수용 가능
-    print(f"평균 스텝 수:     {avg_steps:.1f}")          # 낮을수록 좋음
+    print(f"평균 스텝 수:     {avg_steps:.1f}")          # 낮을수록 효율적
     print(f"환각률:          {hallucination_rate:.0%}")  # < 10%가 목표
 ```
 
-| 지표 | 양호 | 미흡 | 개선 방법 |
+| 지표 | 양호 | 미흡 | 권장 조치 |
 |------|------|------|----------|
-| 도구 정확도 > 80% | 올바른 도구를 선택함 | 텍스트 질문에 계산기를 호출 | 도구 설명을 개선해 주세요 |
-| 완료율 > 70% | 과제가 정상 완료됨 | 루프에 빠지거나 포기함 | max_steps를 확인하고 fallback을 추가해 주세요 |
-| 평균 스텝 < 3 | 효율적으로 동작함 | 간단한 조회에 8개 도구 호출 | 도구 셋을 단순화해 주세요 |
-| 환각률 < 10% | 솔직하게 응답함 | 출처를 지어냄 | "모르면 모른다고 응답하세요" 지시를 추가해 주세요 |
+| 도구 정확도 > 80% | 올바른 도구 선택 | 부적합한 도구 호출 | 도구 설명 개선 |
+| 완료율 > 70% | 과제 정상 완료 | 루프 또는 중단 발생 | max_steps 확인, fallback 추가 |
+| 평균 스텝 < 3 | 효율적 실행 | 과도한 도구 호출 | 도구 셋 단순화 |
+| 환각률 < 10% | 솔직한 응답 | 근거 없는 출처 생성 | "불확실한 경우 인정" 지시 추가 |
 
 ---
 
-## 6. LLM 목킹 (테스트 비용을 절약하시려면)
+## 6. LLM 목킹 (테스트 비용 절감)
 
-실제 LLM을 호출하는 모든 테스트는 느리고 (~1-3초), 비용이 들고 (~$0.001-0.01), 비결정적입니다. 목(mock)을 사용하시는 것을 권장합니다.
+실제 LLM을 호출하는 테스트는 느리고(~1–3초), 비용이 들며(~$0.001–0.01), 비결정적입니다. 유닛 테스트에는 목(mock)을 사용하시기 바랍니다.
 
 ```python
 # conftest.py
 import pytest
 
 class MockLLM:
-    """고정 응답을 반환합니다. 유닛 테스트에 사용합니다."""
+    """결정적인 유닛 테스트를 위한 고정 응답 반환 클래스입니다."""
     def __init__(self, response="테스트 응답입니다."):
         self.response = response
-        self.calls = []  # 전송된 내용을 추적합니다
+        self.calls = []  # 전송 내역 추적
 
     async def chat(self, messages, **kwargs):
         self.calls.append({"messages": messages, **kwargs})
@@ -318,14 +320,15 @@ async def test_rag_pipeline_uses_context(mock_llm):
     assert "컨텍스트" in system_msg or "context" in system_msg.lower()
 ```
 
-**권장 사항:**
-- **유닛 테스트** → 항상 LLM을 목으로 대체하세요 (빠르고, 무료이며, 결정적입니다)
-- **검색 테스트** → 실제 임베딩을 사용하되, 생성 부분은 목으로 처리하세요
-- **RAGAS 평가** → 실제 LLM을 사용하세요 (평가의 핵심이므로, 대신 실행 빈도를 줄여 주세요)
+**가이드라인:**
+
+- **유닛 테스트** → 항상 LLM을 목으로 대체 (빠르고, 무료이며, 결정적)
+- **검색 테스트** → 실제 임베딩 사용, 생성 부분은 목 처리
+- **RAGAS 평가** → 실제 LLM 사용 (평가의 핵심이므로, 실행 빈도를 조절)
 
 ---
 
-## 정리: 언제 무엇을 실행할 것인가
+## 정리: 테스트 실행 시점
 
 ```
 코드 변경 시마다 (초 단위, 무료):
@@ -338,14 +341,14 @@ async def test_rag_pipeline_uses_context(mock_llm):
   python eval_rag_quality.py
 ```
 
-### 최소한의 테스트 수트
+### 필수 테스트 5가지
 
-다른 것은 다 못 하시더라도, 이 5개만 작성해 주세요:
+최소한 다음 5개의 테스트를 구현해 주세요:
 
-1. **검색 1위 결과가 올바른 키워드를 포함하는지** — 임베딩/청킹 회귀를 감지합니다
-2. **답변이 컨텍스트의 사실을 언급하는지** — 프롬프트 템플릿 버그를 감지합니다
-3. **컨텍스트가 관련 없을 때 "모르겠습니다"라고 답변하는지** — 환각을 감지합니다
-4. **프롬프트 인젝션이 차단되는지** — 가장 심각한 보안 실패를 감지합니다
-5. **출력에서 개인정보가 마스킹되는지** — 데이터 유출을 감지합니다
+1. **검색 1위 결과에 예상 키워드 포함 확인** — 임베딩/청킹 회귀 감지
+2. **답변이 제공된 컨텍스트의 사실을 참조하는지 확인** — 프롬프트 템플릿 오류 감지
+3. **컨텍스트가 관련 없을 때 불확실성을 인정하는지 확인** — 환각 감지
+4. **프롬프트 인젝션 차단 확인** — 보안 취약점 감지
+5. **출력에서 개인정보 마스킹 확인** — 데이터 유출 감지
 
-30분이면 충분합니다. 최악의 사고를 미리 방지할 수 있습니다.
+약 30분이면 구현 가능하며, 가장 빈번한 프로덕션 문제를 사전에 방지할 수 있습니다.
